@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Blockyard — 3D scene builder</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #15151a; }
+  #app { position: relative; width: 100%; height: 100%; }
+  #canvas-wrap { position: absolute; inset: 0; }
+  canvas { display: block; }
+
+  .panel {
+    position: absolute;
+    background: rgba(24,24,30,0.92);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    color: #e7e7ea;
+    padding: 14px;
+  }
+
+  #toolbar {
+    top: 16px; left: 16px;
+    display: flex; flex-direction: column; gap: 8px;
+    width: 220px;
+  }
+  #toolbar h1 {
+    font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: #8d8d96; margin: 0 0 4px 2px;
+  }
+  .shape-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .shape-btn {
+    background: #232329; border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px; color: #cfcfd6; padding: 10px 4px;
+    font-size: 11px; cursor: pointer; display: flex; flex-direction: column;
+    align-items: center; gap: 6px; transition: background .12s, border-color .12s;
+  }
+  .shape-btn:hover { background: #2c2c34; border-color: rgba(124,140,255,0.5); }
+  .shape-icon { width: 22px; height: 22px; }
+
+  .divider { height: 1px; background: rgba(255,255,255,0.08); margin: 4px 0; }
+
+  .mode-row { display: flex; gap: 6px; }
+  .mode-btn {
+    flex: 1; background: #232329; border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px; color: #cfcfd6; padding: 8px 0; font-size: 11px;
+    cursor: pointer; text-align: center;
+  }
+  .mode-btn.active { background: #4d5bf0; color: #fff; border-color: #4d5bf0; }
+  .mode-btn:hover:not(.active) { background: #2c2c34; }
+
+  #hint { font-size: 11px; color: #8d8d96; line-height: 1.5; margin-top: 2px; }
+
+  #inspector {
+    top: 16px; right: 16px; width: 220px;
+    display: none; flex-direction: column; gap: 10px;
+  }
+  #inspector h2 { font-size: 13px; font-weight: 600; margin: 0; color: #cfcfd6; }
+  .field-label { font-size: 10px; color: #8d8d96; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; display: block; }
+  .xyz-row { display: flex; gap: 5px; }
+  .xyz-row input {
+    width: 100%; background: #232329; border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px; color: #e7e7ea; padding: 5px 6px; font-size: 11px;
+  }
+  #colorRow { display: flex; gap: 6px; flex-wrap: wrap; }
+  .swatch {
+    width: 22px; height: 22px; border-radius: 5px; cursor: pointer;
+    border: 2px solid transparent;
+  }
+  .swatch.selected { border-color: #fff; }
+  #scaleSlider { width: 100%; }
+  #deleteBtn {
+    margin-top: 4px; background: #3a1f23; border: 1px solid #7a3038;
+    color: #f0a3a9; padding: 8px; border-radius: 8px; cursor: pointer; font-size: 12px;
+  }
+  #deleteBtn:hover { background: #4a262b; }
+
+  #bottomBar {
+    bottom: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 10px; align-items: center; padding: 8px 12px;
+  }
+  #bottomBar button {
+    background: #232329; border: 1px solid rgba(255,255,255,0.06);
+    color: #cfcfd6; border-radius: 7px; padding: 7px 12px; font-size: 12px; cursor: pointer;
+  }
+  #bottomBar button:hover { background: #2c2c34; }
+  #count { font-size: 11px; color: #8d8d96; padding: 0 4px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="canvas-wrap"></div>
+
+  <div class="panel" id="toolbar">
+    <h1>Add object</h1>
+    <div class="shape-grid">
+      <button class="shape-btn" data-shape="box">
+        <svg class="shape-icon" viewBox="0 0 24 24" fill="none" stroke="#cfcfd6" stroke-width="1.5"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M4 7.5L12 12l8-4.5M12 12v9"/></svg>
+        Box
+      </button>
+      <button class="shape-btn" data-shape="sphere">
+        <svg class="shape-icon" viewBox="0 0 24 24" fill="none" stroke="#cfcfd6" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="9" ry="3.5"/></svg>
+        Sphere
+      </button>
+      <button class="shape-btn" data-shape="cylinder">
+        <svg class="shape-icon" viewBox="0 0 24 24" fill="none" stroke="#cfcfd6" stroke-width="1.5"><ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6"/></svg>
+        Cylinder
+      </button>
+      <button class="shape-btn" data-shape="cone">
+        <svg class="shape-icon" viewBox="0 0 24 24" fill="none" stroke="#cfcfd6" stroke-width="1.5"><path d="M12 3l7 16H5L12 3z"/><ellipse cx="12" cy="19" rx="7" ry="1.6"/></svg>
+        Cone
+      </button>
+      <button class="shape-btn" data-shape="torus">
+        <svg class="shape-icon" viewBox="0 0 24 24" fill="none" stroke="#cfcfd6" stroke-width="1.5"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/></svg>
+        Torus
+      </button>
+      <button class="shape-btn" data-shape="capsule">
+        <svg class="shape-icon" viewBox="0 0 24 24" fill="none" stroke="#cfcfd6" stroke-width="1.5"><rect x="8" y="3" width="8" height="18" rx="4"/></svg>
+        Capsule
+      </button>
+    </div>
+
+    <div class="divider"></div>
+    <h1>Transform mode</h1>
+    <div class="mode-row">
+      <button class="mode-btn active" data-mode="translate">Move</button>
+      <button class="mode-btn" data-mode="rotate">Rotate</button>
+      <button class="mode-btn" data-mode="scale">Scale</button>
+    </div>
+    <div id="hint">Click an object to select it. Drag the gizmo to transform. Click empty space to deselect.</div>
+  </div>
+
+  <div class="panel" id="inspector">
+    <h2 id="inspectorTitle">Box</h2>
+    <div>
+      <span class="field-label">Position</span>
+      <div class="xyz-row">
+        <input type="number" id="posX" step="0.1">
+        <input type="number" id="posY" step="0.1">
+        <input type="number" id="posZ" step="0.1">
+      </div>
+    </div>
+    <div>
+      <span class="field-label">Color</span>
+      <div id="colorRow"></div>
+    </div>
+    <div>
+      <span class="field-label">Scale</span>
+      <input type="range" id="scaleSlider" min="0.2" max="3" step="0.05" value="1">
+    </div>
+    <button id="deleteBtn">Delete object</button>
+  </div>
+
+  <div class="panel" id="bottomBar">
+    <button id="resetCam">Reset view</button>
+    <button id="clearAll">Clear scene</button>
+    <span id="count">0 objects</span>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/controls/TransformControls.js"></script>
+<script>
+(function() {
+  const wrap = document.getElementById('canvas-wrap');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x15151a);
+  scene.fog = new THREE.Fog(0x15151a, 18, 40);
+
+  const camera = new THREE.PerspectiveCamera(50, wrap.clientWidth / wrap.clientHeight, 0.1, 100);
+  camera.position.set(7, 6, 9);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  wrap.appendChild(renderer.domElement);
+
+  const hemi = new THREE.HemisphereLight(0xb6c4ff, 0x232026, 0.9);
+  scene.add(hemi);
+  const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+  dir.position.set(6, 10, 4);
+  dir.castShadow = true;
+  dir.shadow.mapSize.set(2048, 2048);
+  dir.shadow.camera.left = -12; dir.shadow.camera.right = 12;
+  dir.shadow.camera.top = 12; dir.shadow.camera.bottom = -12;
+  scene.add(dir);
+
+  const grid = new THREE.GridHelper(30, 30, 0x3a3a44, 0x24242c);
+  scene.add(grid);
+  const floorGeo = new THREE.PlaneGeometry(30, 30);
+  const floorMat = new THREE.ShadowMaterial({ opacity: 0.35 });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const orbit = new THREE.OrbitControls(camera, renderer.domElement);
+  orbit.enableDamping = true;
+  orbit.dampingFactor = 0.08;
+  orbit.target.set(0, 0.5, 0);
+
+  const tcontrol = new THREE.TransformControls(camera, renderer.domElement);
+  tcontrol.addEventListener('dragging-changed', e => orbit.enabled = !e.value);
+  scene.add(tcontrol);
+
+  const palette = [0x7c8cff, 0xff8c6b, 0x6bd9a8, 0xffd166, 0xf06bb0, 0xb6b6c2, 0xffffff, 0x2c2c34];
+  const objects = [];
+  let selected = null;
+  let spawnOffset = 0;
+
+  function makeGeo(shape) {
+    switch (shape) {
+      case 'box': return new THREE.BoxGeometry(1.2, 1.2, 1.2);
+      case 'sphere': return new THREE.SphereGeometry(0.8, 32, 24);
+      case 'cylinder': return new THREE.CylinderGeometry(0.7, 0.7, 1.4, 28);
+      case 'cone': return new THREE.ConeGeometry(0.8, 1.5, 28);
+      case 'torus': return new THREE.TorusGeometry(0.6, 0.25, 16, 40);
+      case 'capsule': return new THREE.CapsuleGeometry(0.5, 0.9, 8, 16);
+    }
+  }
+
+  function addShape(shape) {
+    const geo = makeGeo(shape);
+    const mat = new THREE.MeshStandardMaterial({ color: palette[objects.length % palette.length], roughness: 0.45, metalness: 0.08 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    const ring = (objects.length % 6);
+    const angle = ring * 1.05;
+    mesh.position.set(Math.cos(angle) * 2.2, 0.9, Math.sin(angle) * 2.2);
+    mesh.userData.shape = shape;
+    scene.add(mesh);
+    objects.push(mesh);
+    selectObject(mesh);
+    updateCount();
+  }
+
+  function selectObject(mesh) {
+    selected = mesh;
+    tcontrol.attach(mesh);
+    document.getElementById('inspector').style.display = 'flex';
+    document.getElementById('inspectorTitle').textContent =
+      mesh.userData.shape.charAt(0).toUpperCase() + mesh.userData.shape.slice(1);
+    syncInspector();
+  }
+
+  function deselect() {
+    selected = null;
+    tcontrol.detach();
+    document.getElementById('inspector').style.display = 'none';
+  }
+
+  function syncInspector() {
+    if (!selected) return;
+    document.getElementById('posX').value = selected.position.x.toFixed(2);
+    document.getElementById('posY').value = selected.position.y.toFixed(2);
+    document.getElementById('posZ').value = selected.position.z.toFixed(2);
+    document.getElementById('scaleSlider').value = selected.scale.x;
+    const row = document.getElementById('colorRow');
+    [...row.children].forEach(sw => {
+      sw.classList.toggle('selected', parseInt(sw.dataset.hex, 16) === selected.material.color.getHex());
+    });
+  }
+
+  const colorRow = document.getElementById('colorRow');
+  palette.forEach(hex => {
+    const sw = document.createElement('div');
+    sw.className = 'swatch';
+    sw.style.background = '#' + hex.toString(16).padStart(6, '0');
+    sw.dataset.hex = hex.toString(16).padStart(6, '0');
+    sw.addEventListener('click', () => {
+      if (selected) {
+        selected.material.color.setHex(hex);
+        syncInspector();
+      }
+    });
+    colorRow.appendChild(sw);
+  });
+
+  document.querySelectorAll('.shape-btn').forEach(btn => {
+    btn.addEventListener('click', () => addShape(btn.dataset.shape));
+  });
+
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      tcontrol.setMode(btn.dataset.mode);
+    });
+  });
+
+  ['posX', 'posY', 'posZ'].forEach((id, i) => {
+    document.getElementById(id).addEventListener('input', e => {
+      if (!selected) return;
+      const axis = ['x', 'y', 'z'][i];
+      selected.position[axis] = parseFloat(e.target.value) || 0;
+    });
+  });
+
+  document.getElementById('scaleSlider').addEventListener('input', e => {
+    if (!selected) return;
+    const s = parseFloat(e.target.value);
+    selected.scale.set(s, s, s);
+  });
+
+  document.getElementById('deleteBtn').addEventListener('click', () => {
+    if (!selected) return;
+    scene.remove(selected);
+    const idx = objects.indexOf(selected);
+    if (idx > -1) objects.splice(idx, 1);
+    deselect();
+    updateCount();
+  });
+
+  document.getElementById('clearAll').addEventListener('click', () => {
+    objects.forEach(o => scene.remove(o));
+    objects.length = 0;
+    deselect();
+    updateCount();
+  });
+
+  document.getElementById('resetCam').addEventListener('click', () => {
+    camera.position.set(7, 6, 9);
+    orbit.target.set(0, 0.5, 0);
+  });
+
+  function updateCount() {
+    document.getElementById('count').textContent = objects.length + (objects.length === 1 ? ' object' : ' objects');
+  }
+
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  let downPos = null;
+
+  renderer.domElement.addEventListener('pointerdown', e => { downPos = [e.clientX, e.clientY]; });
+  renderer.domElement.addEventListener('pointerup', e => {
+    if (!downPos) return;
+    const moved = Math.hypot(e.clientX - downPos[0], e.clientY - downPos[1]);
+    if (moved > 4) return;
+    if (tcontrol.dragging) return;
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(objects);
+    if (hits.length > 0) {
+      selectObject(hits[0].object);
+    } else if (!e.target.closest('.panel')) {
+      deselect();
+    }
+  });
+
+  tcontrol.addEventListener('objectChange', syncInspector);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = wrap.clientWidth / wrap.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+  });
+
+  addShape('box');
+  addShape('sphere');
+
+  function animate() {
+    requestAnimationFrame(animate);
+    orbit.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+})();
+</script>
+</body>
+</html>
