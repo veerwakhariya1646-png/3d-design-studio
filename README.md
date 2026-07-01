@@ -1,6 +1,7 @@
 # 3D Design Studio
 
 ![3D Design Studio preview](assets/preview.png)
+![3D Design Studio preview](assets/preview.png)
 
 A small 3D scene builder, available in two editions: a browser-based app and a pure Python script.
 
